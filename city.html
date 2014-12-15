@@ -1,0 +1,258 @@
+<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" type="text/css" href="styles.css">
+
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/d3/2.10.0/d3.v2.min.js"></script>
+    <script type="text/javascript" src="http://maps.googleapis.com/maps/api/js?sensor=false"></script>
+<!--     <script type="text/javascript" src="simple2_json.js"></script> -->
+<!--     // <script type="text/javascript" src="glass_json.js"></script> -->
+
+    <script type="text/javascript" src="parcels_json.js"></script>
+    <!-- //for tip// -->
+    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="http://d3js.org/queue.v1.min.js"></script>
+    <script type="text/javascript" src="http://d3js.org/topojson.v0.min.js"></script>
+    <!--   //for tip// -->
+    
+  <script type="text/javascript">
+
+  var _gaq = _gaq || [];
+
+  _gaq.push(['_setAccount', 'UA-11072036-2']);
+
+  _gaq.push(['_setDomainName', 'timesfreepress.com']);
+
+  _gaq.push(['_setCustomVar',1,'site','www.timesfreepress.com',2]);
+
+  var gaqSection = 'Local Business - TN Valley';
+
+  _gaq.push(['_setCustomVar',2,'section',gaqSection,3]);
+
+  _gaq.push(['_setCustomVar',5,'section',gaqSection,3]);
+
+  _gaq.push(['_setCustomVar',4,'author','Associated Press,',3]);
+
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+
+  })();
+
+</script>
+
+  
+  </head>
+  
+  <body>
+    <div id="navigation-text" margin-top="0">
+        <a href="http://www.timesfreepress.com"><img src="tfp_logo.png"></a>
+ </div>
+    <div style="float:left; width:100%;"> 
+      <div id="map-wrap">
+        <div id="map"></div>
+        <div id="legend">
+
+          <form action="">
+          
+            <input type="radio" id="propValue" onclick="document.location='index.html';" /><label for="propValue">Property values</label><br>
+            <input type="radio" id="city" onclick="document.location='city.html';" checked="checked" /><label for="mbps">Owned by city and/or county</label><br>
+          </form>
+
+          <script>
+              document.getElementById("mapChoice").onchange = function() {
+                  if (this.selectedIndex!==0) {
+                window.location.href = this.value;
+              }        
+            };
+          </script>
+
+        <h3><strong>Glass Street Area</strong></h3>
+
+        <img src="yellow_box.png">
+
+        <p><strong>Properties owned by city and/or county</strong></p>
+
+        <p id="source">Source: Hamilton County GIS</p>
+        <p id="byline">Graphic by Mary Helen Miller</p>
+    
+        </div>
+      </div>
+    </div>
+
+    <div style="float:left; width:120px;"></div>
+    
+    <div style="clear:both;"></div>
+
+    <script>
+      var mapZoom = 15; 
+      var mapCenterLat = 35.065;
+      var mapCenterLng = -85.26;
+      var mapCenter = new google.maps.LatLng(mapCenterLat, mapCenterLng);
+
+      var tooltip = d3.select("body")
+      .append("tooltip")   
+      .attr("id", "tooltip") 
+      .style("opacity", 0)
+      .style("position", "absolute");
+      
+
+      $(function () {
+        var $tooltip = $("#tooltip");
+        var $map = $("#map");
+        var map = new google.maps.Map($map[0], {
+          zoom: mapZoom,
+          disableDoubleClickZoom: false,
+          panControl: true,
+            panControlOptions: {
+            position: google.maps.ControlPosition.RIGHT_CENTER},
+          zoomControl: true,
+            zoomControlOptions: {
+            style: google.maps.ZoomControlStyle.LARGE,
+            position: google.maps.ControlPosition.RIGHT_CENTER},
+          mapTypeControl: false,
+          scaleControl: false,
+          streetViewControl: false,
+          overviewMapControl: true,
+          scrollwheel: true,
+          draggable: true,
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          center: mapCenter,
+          styles: [
+            {featureType:"landscape",stylers:[{saturation:-100},{lightness:100},{visibility:"on"}]},
+            {featureType:"poi",stylers:[{saturation:-100},{lightness:100},{visibility:"simplified"}]},
+            {featureType:"road.highway",stylers:[{saturation:-100},{visibility:"simplified"}]},
+            {featureType:"road.arterial",stylers:[{saturation:-100},{lightness:30},{visibility:"on"}]},
+            {featureType:"road.local",stylers:[{saturation:-100},{lightness:10},{visibility:"on"}]},
+            {featureType:"transit",stylers:[{saturation:-100},{visibility:"simplified"}]},
+            {featureType:"administrative.province",stylers:[{visibility:"on"}]/**/},
+            {featureType:"administrative.locality",stylers:[{visibility:"on"},{lightness:-30},{saturation:-100}]},
+            {featureType:"administrative.neighborhood",stylers:[{visibility:"on"}]/**/},
+            {featureType:"water",elementType:"labels",stylers:[{visibility:"on"},{lightness:-25},{saturation:-100}]},
+            {featureType:"water",elementType:"geometry",stylers:[{hue:"#ffff00"},{lightness:-25},{saturation:-97}]}
+          ]
+        });
+
+        var overlay = new google.maps.OverlayView();
+        overlay.onAdd = function () {
+          var layer = d3.select(this.getPanes().overlayMouseTarget).append("tooltip").attr("class", "SvgOverlay");
+          var svg = layer.append("svg");
+          var zipCodes = svg.append("g");
+      
+          overlay.draw = function () {
+            var markerOverlay = this;
+            var overlayProjection = markerOverlay.getProjection();
+
+            // Turn the overlay projection into a d3 projection
+            var googleMapProjection = function (coordinates) {
+              var googleCoordinates = new google.maps.LatLng(coordinates[1], coordinates[0]);
+              var pixelCoordinates = overlayProjection.fromLatLngToDivPixel(googleCoordinates);
+              return [pixelCoordinates.x + 4000, pixelCoordinates.y + 4000];
+            }
+
+            path = d3.geo.path().projection(googleMapProjection);
+
+            zipCodes.selectAll("path")
+            .data(geoJson.features)
+            .attr("d", path) // update existing paths
+            .enter()
+            .append("svg:path")
+            .attr("d", path)
+            .attr("fill", function(d, i) { return getColor(d.properties.OWNERNAME1); })
+            .on("mouseover", function(d, i) {
+              triggerMouseIn(this, d);
+            })
+            .on('click', function(d) {
+              triggerMouseOut(this, d);
+              triggerMouseIn(this, d);
+            })
+            .on("mouseout", function(d) {
+              triggerMouseOut(this, d);
+            });
+          };
+        };
+
+        overlay.setMap(map);
+
+        function triggerMouseOut(selected, d){
+          d3.select(selected).transition().duration(300)
+          .style("fill", function(d, i) { return getColor(d.properties.OWNERNAME1); });
+          tooltip.transition().duration(300).style("opacity", 0);
+        }
+
+        function triggerMouseIn(selected, d){
+          d3.select(selected).transition().duration(300).style("fill", "gray");
+          tooltip.transition().duration(300).style("opacity", 1);
+          tooltip.html(function(data){
+            /* EDIT: Tooltip Fields */
+            return '<strong>Adress: </strong>' + toTitleCase(d.properties.ADDRESS) + '<br />'
+            + '<strong>Property value: </strong>' + '$' + formatValue(d.properties.APPVALUE) + '<br />'
+            + '<strong>Last sold: </strong>' + formatDate(d.properties.SALE1DATE) + '<br />'
+            + '<strong>Owner: </strong>' + toTitleCase(d.properties.OWNERNAME1) + getOwner(d.properties.OWNERNAME2) + '<br />';
+          });
+
+        }
+
+
+        function getColor(owner){
+          if (owner === 'CHATT HOUSING AUTHORITY') {
+            return 'yellow'; 
+          }
+          if (owner === "CHATT CITY OF & HAMILTON CO"){
+            return 'yellow';
+          }
+          if (owner === "HAMILTON COUNTY & CHATT CITY OF"){
+            return 'yellow';
+          }
+          if (owner === "HAMILTON CO & CHATT CITY OF"){
+            return 'yellow';
+          }
+          if (owner === "CHATT CITY OF & HAMILTON CO"){
+            return 'yellow';
+          }
+          else {
+            return '#287d7d'; 
+          }        
+        }
+
+        function getOwner(second_owner){
+          if (second_owner = 'null') {
+            return ''; 
+          }
+          else {
+            return ' ' + 'and' + ' ' + second_owner; 
+          }        
+        }
+
+        function formatDate(date){
+          return date;
+        }
+
+
+        function formatValue(value) {
+          return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function toTitleCase(ownerName){
+        return ownerName.replace(/\w\S*/g, 
+          function(txt){
+        return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        });
+      }
+
+
+
+      });
+
+    </script>
+  </body>
+</html>
